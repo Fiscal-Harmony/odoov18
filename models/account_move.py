@@ -502,6 +502,10 @@ class AccountMove(models.Model):
 
     def _prepare_line_item(self, line, tax_mappings):
         """Prepare a single line item with error handling"""
+        # Skip section and note lines
+        if line.display_type in ('line_section', 'line_note'):
+            return None
+
         # Calculate tax information
         tax_code = ""
         if line.tax_ids:
@@ -514,24 +518,27 @@ class AccountMove(models.Model):
         name, hscode = self._parse_product_name(line)
 
         # Calculate amounts based on invoice type
-        if self.move_type == 'out_refund':
-            unit_amount = abs(line.price_unit)
-            line_amount = abs(line.price_total)
-            quantity = abs(line.quantity)
-            discount_amount = abs(line.price_unit * line.quantity - line.price_total)
-        else:
-            unit_amount = line.price_unit
-            line_amount = line.price_total
-            quantity = line.quantity
-            discount_amount = abs((line.price_unit * line.quantity) - line.price_total) if line.discount else 0
+        is_refund = self.move_type == 'out_refund'
+
+        # Use absolute values for refunds
+        quantity = abs(line.quantity) if is_refund else line.quantity
+        unit_amount = abs(line.price_unit) if is_refund else line.price_unit
+
+        # Calculate discount: difference between gross and subtotal (before tax)
+        gross_amount = unit_amount * quantity
+        subtotal = abs(line.price_subtotal) if is_refund else line.price_subtotal
+        discount_amount = gross_amount - subtotal
+
+        # Line total (with taxes)
+        line_total = abs(line.price_total) if is_refund else line.price_total
 
         # Build line item
         return {
-            "Description": name,
+            "Description": name or line.name or "",
             "UnitAmount": f"{unit_amount:.3f}",
             "TaxCode": tax_code,
-            "ProductCode": hscode,
-            "LineAmount": f"{line_amount:.2f}",
+            "ProductCode": hscode or "",
+            "LineAmount": f"{line_total:.2f}",
             "DiscountAmount": f"{discount_amount:.2f}",
             "Quantity": f"{quantity:.3f}",
         }
