@@ -164,6 +164,29 @@ class AccountMove(models.Model):
                 'danger'
             )
 
+    def _is_tax_inclusive(self):
+        """
+        Determine if the invoice uses tax-inclusive pricing.
+        Returns True if ALL taxes on the invoice are price-inclusive,
+        False if ALL are exclusive, raises a warning if mixed.
+        """
+        taxes = self.invoice_line_ids.mapped('tax_ids')
+
+        if not taxes:
+            return False  # No taxes = treat as exclusive
+
+        inclusive_taxes = taxes.filtered(lambda t: t.price_include)
+        exclusive_taxes = taxes.filtered(lambda t: not t.price_include)
+
+        if inclusive_taxes and exclusive_taxes:
+            # Mixed — log a warning and fall back to majority
+            _logger.warning(
+                f"Invoice {self.name} has mixed inclusive/exclusive taxes. "
+                f"Defaulting based on majority."
+            )
+            return len(inclusive_taxes) >= len(exclusive_taxes)
+
+        return bool(inclusive_taxes)
     def _send_to_zimra(self):
         """Send invoice to ZIMRA with improved error handling"""
         self.ensure_one()
@@ -409,7 +432,7 @@ class AccountMove(models.Model):
                     "CreditNoteNumber": self.name,
                     "OriginalInvoiceId": self.reversed_entry_id.name if self.reversed_entry_id else "",
                     "Reference": self.ref or '',
-                    "IsTaxInclusive": True,
+                    "IsTaxInclusive": self._is_tax_inclusive(),
                     "IsDiscounted":has_discount,
                     "BuyerContact": buyer_contact,
                     "Date": timestamp,
@@ -429,7 +452,7 @@ class AccountMove(models.Model):
                     "InvoiceNumber": self.name,
                     "Reference": self.ref or "",
                     "IsDiscounted": has_discount,
-                    "IsTaxInclusive": True,
+                    "IsTaxInclusive": self._is_tax_inclusive(),
                     "BuyerContact": buyer_contact,
                     "Date": timestamp,
                     "LineItems": line_items,
