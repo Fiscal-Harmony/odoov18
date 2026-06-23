@@ -119,7 +119,7 @@ class ZimraConfig(models.Model):
         api_key: str = self.api_key if api_key is None else api_key
         headers = {
             "X-Api-Key": api_key,
-            "X-Application": "FH_Quickbooks",
+            "X-Application": "Odoo18",
             "X-App-Station": "1",
             "Content-Type": "application/json"
         }
@@ -157,7 +157,7 @@ class ZimraConfig(models.Model):
         api_key: str = self.api_key if api_key is None else api_key
         headers = {
             "X-Api-Key": api_key,
-            "X-Application": "FH_Quickbooks",
+            "X-Application": "Odoo18",
             "X-App-Station": "1",
         }
 
